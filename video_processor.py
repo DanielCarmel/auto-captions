@@ -1,0 +1,364 @@
+"""
+video_processor.py - Processes video with subtitles using ffmpeg
+"""
+
+import logging
+import os
+import subprocess
+import tempfile
+
+logger = logging.getLogger(__name__)
+
+
+class VideoProcessor:
+    """Processes video files and burns subtitles into them."""
+
+    def __init__(self):
+        """Initialize the VideoProcessor."""
+        logger.info("Initializing VideoProcessor")
+        self._check_ffmpeg()
+
+    def _check_ffmpeg(self):
+        """Check if ffmpeg is installed and available."""
+        try:
+            subprocess.run(
+                ["ffmpeg", "-version"],
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            logger.info("ffmpeg is available")
+        except (subprocess.SubprocessError, FileNotFoundError):
+            logger.error("ffmpeg is not installed or not in PATH")
+            raise RuntimeError(
+                "ffmpeg is required but not found. Please install ffmpeg and make sure it's in your PATH."
+            )
+
+    def get_media_duration(self, video_path: str) -> float:
+        """
+        Get the duration of a media file using ffprobe(mp3, mp4, wav).
+
+        Args:
+            video_path: Path to the video file(mp3, mp4, wav)
+
+        Returns:
+            Duration of the video in seconds
+        """
+        logger.info(f"Getting duration of video: {video_path}")
+
+        # Use ffprobe to get the duration
+        cmd = [
+            "ffprobe",
+            "-v",
+            "error",
+            "-show_entries",
+            "format=duration",
+            "-of",
+            "default=noprint_wrappers=1:nokey=1",
+            video_path,
+        ]
+
+        try:
+            result = subprocess.run(
+                cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+            )
+            duration = float(result.stdout.strip())
+            logger.info(f"Video duration: {duration} seconds")
+            return duration
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Error getting video duration: {e.stderr}")
+            raise RuntimeError(f"Failed to get video duration: {str(e)}")
+        except ValueError as e:
+            logger.error(f"Invalid duration value: {e}")
+            raise RuntimeError(f"Failed to parse video duration: {str(e)}")
+
+    def adjust_video_duration(self, video_path: str, target_duration: float, output_path: str) -> str:
+        """
+        Adjust the duration of a video to match the target duration.
+        The video will be trimmed or extended as needed.
+
+        Args:
+            video_path: Path to the input video
+            target_duration: Target duration in seconds
+            output_path: Path for the output video
+
+        Returns:
+            Path to the adjusted video
+        """
+        # Get the current duration of the video
+        current_duration = self.get_media_duration(video_path)
+
+        # If durations are close enough, just copy the video
+        if abs(current_duration - target_duration) < 0.5:
+            logger.info(f"Video duration ({current_duration}s) already matches target ({target_duration}s)")
+            if video_path != output_path:
+                self._copy_video(video_path, output_path)
+            return output_path
+
+        # Check if we need to trim or extend
+        if current_duration > target_duration:
+            # Need to trim the video
+            return self._trim_video(video_path, target_duration, output_path)
+        else:
+            # Need to extend the video
+            return self._extend_video(video_path, target_duration, output_path)
+
+    def _copy_video(self, video_path: str, output_path: str) -> str:
+        """Copy a video file."""
+        logger.info(f"Copying video from {video_path} to {output_path}")
+
+        # Ensure the output directory exists
+        output_dir = os.path.dirname(output_path)
+        if output_dir and not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+
+        # Use ffmpeg to copy the video without re-encoding
+        cmd = [
+            "ffmpeg",
+            "-i",
+            video_path,
+            "-c",
+            "copy",
+            output_path,
+            "-y",
+        ]
+
+        try:
+            subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            logger.info(f"Video copied to {output_path}")
+            return output_path
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Error copying video: {e.stderr}")
+            raise RuntimeError(f"Failed to copy video: {str(e)}")
+
+    def _trim_video(self, video_path: str, target_duration: float, output_path: str) -> str:
+        """
+        Trim a video to the specified duration.
+
+        Args:
+            video_path: Path to the input video
+            target_duration: Target duration in seconds
+            output_path: Path for the output video
+
+        Returns:
+            Path to the trimmed video
+        """
+        logger.info(f"Trimming video to {target_duration} seconds")
+
+        # Ensure the output directory exists
+        output_dir = os.path.dirname(output_path)
+        if output_dir and not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+
+        # Use ffmpeg to trim the video
+        cmd = [
+            "ffmpeg",
+            "-i",
+            video_path,
+            "-t",
+            str(target_duration),
+            "-c:v",
+            "libx264",
+            "-c:a",
+            "aac",
+            "-strict",
+            "experimental",
+            output_path,
+            "-y",
+        ]
+
+        try:
+            subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            logger.info(f"Video trimmed to {target_duration} seconds: {output_path}")
+            return output_path
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Error trimming video: {e.stderr}")
+            raise RuntimeError(f"Failed to trim video: {str(e)}")
+
+    def _extend_video(self, video_path: str, target_duration: float, output_path: str) -> str:
+        """
+        Extend a video to the specified duration by looping or adding a still frame.
+
+        Args:
+            video_path: Path to the input video
+            target_duration: Target duration in seconds
+            output_path: Path for the output video
+
+        Returns:
+            Path to the extended video
+        """
+        logger.info(f"Extending video to {target_duration} seconds")
+
+        # Get original duration
+        original_duration = self.get_media_duration(video_path)
+
+        # Ensure the output directory exists
+        output_dir = os.path.dirname(output_path)
+        if output_dir and not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+
+        # Create a temporary directory for processing
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Extract the last frame to use for freezing
+            last_frame_path = os.path.join(temp_dir, "last_frame.jpg")
+            extract_cmd = [
+                "ffmpeg",
+                "-i",
+                video_path,
+                "-ss",
+                str(original_duration - 0.1),  # Get frame from end of video
+                "-frames:v",
+                "1",
+                last_frame_path,
+                "-y",
+            ]
+
+            try:
+                subprocess.run(extract_cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+                # Create a video from the last frame with the remaining duration
+                freeze_duration = target_duration - original_duration
+                freeze_video_path = os.path.join(temp_dir, "freeze.mp4")
+                freeze_cmd = [
+                    "ffmpeg",
+                    "-loop",
+                    "1",
+                    "-i",
+                    last_frame_path,
+                    "-c:v",
+                    "libx264",
+                    "-t",
+                    str(freeze_duration),
+                    "-pix_fmt",
+                    "yuv420p",
+                    "-shortest",
+                    freeze_video_path,
+                    "-y",
+                ]
+
+                subprocess.run(freeze_cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+                # Make a copy of the original video to the temporary directory
+                local_video_path = os.path.join(temp_dir, "original_video.mp4")
+                self._copy_video(video_path, local_video_path)
+
+                # Create a file list for concatenation
+                concat_file = os.path.join(temp_dir, "concat.txt")
+                with open(concat_file, "w") as f:
+                    f.write(f"file '{local_video_path}'\n")
+                    f.write(f"file '{freeze_video_path}'\n")
+
+                # Concatenate the original video and the freeze frame video
+                concat_cmd = [
+                    "ffmpeg",
+                    "-f",
+                    "concat",
+                    "-safe",
+                    "0",
+                    "-i",
+                    concat_file,
+                    "-c:v",
+                    "libx264",
+                    "-c:a",
+                    "aac",
+                    "-strict",
+                    "experimental",
+                    output_path,
+                    "-y",
+                ]
+
+                subprocess.run(concat_cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                logger.info(f"Video extended to {target_duration} seconds: {output_path}")
+                return output_path
+
+            except subprocess.CalledProcessError as e:
+                logger.error(f"Error extending video: {e.stderr}")
+                raise RuntimeError(f"Failed to extend video: {str(e)}")
+
+    def burn_subtitles(self, video_path: str, subtitle_path: str, output_path: str):
+        """
+        Burn subtitles into video using ffmpeg.
+
+        Args:
+            video_path: Path to the input video
+            subtitle_path: Path to the .ass subtitle file
+            output_path: Path for the output video with burned subtitles
+        """
+        logger.info(f"Burning subtitles into video: {video_path}")
+        logger.info(f"Using subtitle file: {subtitle_path}")
+
+        # Ensure the output directory exists
+        output_dir = os.path.dirname(output_path)
+        if output_dir and not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+
+        # Prepare ffmpeg command
+        cmd = [
+            "ffmpeg",
+            "-i",
+            video_path,
+            "-vf",
+            f"ass={subtitle_path}",
+            "-c:a",
+            "copy",
+            "-c:v",
+            "libx264",
+            "-crf",
+            "18",  # Quality setting (lower is better, 18-28 is good range)
+            "-preset",
+            "medium",  # Encoding speed/compression tradeoff
+            output_path,
+            "-y",  # Overwrite output file if it exists
+        ]
+
+        try:
+            # Run ffmpeg command
+            logger.info("Running ffmpeg to burn subtitles")
+            subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+            logger.info(f"Successfully created video with burned subtitles: {output_path}")
+            return True
+
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Error burning subtitles: {e.stderr.decode()}")
+            raise RuntimeError(f"Failed to burn subtitles into video: {str(e)}")
+
+    def extract_frames(self, video_path: str, output_dir: str, fps: int = 1):
+        """
+        Extract frames from video using ffmpeg.
+
+        Args:
+            video_path: Path to the input video
+            output_dir: Directory to save extracted frames
+            fps: Frames per second to extract
+        """
+        logger.info(f"Extracting frames from video: {video_path}")
+
+        # Ensure the output directory exists
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+
+        # Prepare ffmpeg command
+        cmd = [
+            "ffmpeg",
+            "-i",
+            video_path,
+            "-vf",
+            f"fps={fps}",
+            "-q:v",
+            "2",  # Quality setting for JPEG
+            os.path.join(output_dir, "frame_%04d.jpg"),
+            "-y",
+        ]
+
+        try:
+            # Run ffmpeg command
+            logger.info(f"Running ffmpeg to extract frames at {fps} fps")
+            subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+            logger.info(f"Successfully extracted frames to: {output_dir}")
+            return True
+
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Error extracting frames: {e.stderr.decode()}")
+            raise RuntimeError(f"Failed to extract frames from video: {str(e)}")
