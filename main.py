@@ -14,8 +14,12 @@ from datasources import reddit
 from tts.aws_poly import TextToSpeechGenerator
 from text_processor import AITextProcessor
 # from tts.goolge_translate import TextToSpeechGenerator
+from telegram_bot.bot import send_video_to_telegram
 
-VIDEO_PATH = "assets/videos/stars.mp4"
+
+BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
+CHAT_ID = "-4909337445"
+VIDEO_PATH = "assets/videos/birds.mp4"
 STYLE_PATH = "assets/config/style_config.json"
 OUTPUT_PATH = "assets/output/output.mp4"
 
@@ -23,6 +27,7 @@ OUTPUT_PATH = "assets/output/output.mp4"
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
+# Get Reddit posts
 posts = reddit.get_reddit_posts("entitledparents", "day", 1)
 
 if not posts:
@@ -32,6 +37,7 @@ if not posts:
 # Get the original text content
 title = posts[0]["title"]
 
+# Process the text using AITextProcessor
 ai_processor = AITextProcessor("/home/daniel/models/llama/Meta-Llama-3-8B-Instruct-Q5_K_M.gguf")
 text_script = ai_processor.summarize_text(
     datasource=reddit.get_datasource_name(),
@@ -109,3 +115,12 @@ with tempfile.TemporaryDirectory() as temp_dir:
 
     logger.info(f"Subtitles burned into video: {OUTPUT_PATH}")
     logger.info("Processing complete!")
+
+video_success = send_video_to_telegram(
+    video_path=OUTPUT_PATH,
+    caption=title,
+    bot_token=BOT_TOKEN,
+    chat_id=CHAT_ID)
+
+if video_success:
+    logger.info("Video sent successfully to Telegram.")

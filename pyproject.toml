@@ -27,6 +27,7 @@ dependencies = [
     "gtts>=2.5.4",
     "openai-whisper>=20240930",
     "pysubs2>=1.6.0",
+    "python-telegram-bot>=21.6",
     "requests>=2.32.3",
     "tqdm>=4.66.1",
 ]

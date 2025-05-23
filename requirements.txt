@@ -6,6 +6,7 @@ boto3>=1.28.0  # AWS SDK for Python (Boto3) for AWS Polly
 openai>=1.0.0  # OpenAI API for text processing and summarization
 llama-cpp-python>=0.2.11  # LLaMa CPP Python bindings for direct model loading
 requests>=2.25.0  # HTTP library for downloading models
+python-telegram-bot>=13.7  # Telegram Bot API for Python
 
 # Development dependencies
 pytest>=7.0.0
