@@ -8,6 +8,12 @@ llama-cpp-python>=0.2.11  # LLaMa CPP Python bindings for direct model loading
 requests>=2.25.0  # HTTP library for downloading models
 python-telegram-bot>=13.7  # Telegram Bot API for Python
 
+# Social media API libraries
+google-api-python-client>=2.79.0  # For YouTube API
+google-auth-oauthlib>=1.0.0  # OAuth 2.0 for YouTube API
+facebook-sdk>=3.1.0  # Facebook Graph API
+python-tiktok-api>=0.0.2  # Simple TikTok API client
+
 # Development dependencies
 pytest>=7.0.0
 black>=23.0.0

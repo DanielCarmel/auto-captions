@@ -10,6 +10,7 @@ A Python tool that automatically generates styled subtitles for videos using a p
 - Burn subtitles directly into videos using FFmpeg
 - Text summarization and processing with local LLMs
 - Convert text to speech with automatic captions
+- Upload videos to social networks (YouTube, Facebook, Instagram, TikTok)
 
 ## Requirements
 
@@ -71,6 +72,52 @@ For subtitle adjustments:
 ```bash
 adjust-subtitles --input subtitles.ass --output adjusted.ass --shift -0.5 --scale 1.2
 ```
+
+### Using Social Media Uploaders
+
+To upload your captioned videos to social networks:
+
+1. First, set up your API credentials:
+
+```bash
+python -m uploaders.setup_credentials --platform youtube
+# Or set up credentials for all platforms
+python -m uploaders.setup_credentials --platform all
+```
+
+2. Upload a video from the command line:
+
+```bash
+python -m uploaders.upload_example --platform youtube \
+                                 --video output.mp4 \
+                                 --title "My Awesome Video" \
+                                 --description "Video with auto-generated captions!" \
+                                 --tags audo,captions,demo
+```
+
+3. Or use the social media distributor in your code:
+
+```python
+from uploaders.social_media_distributor import SocialMediaDistributor
+
+# Initialize with credentials directory
+distributor = SocialMediaDistributor(credentials_dir="~/.audo-captions/credentials")
+
+# Upload to multiple platforms
+results = distributor.process_and_distribute(
+    input_video_path="input.mp4",
+    subtitles_path="subtitles.srt",
+    output_path="output.mp4",
+    platforms=["youtube", "facebook"],
+    metadata={
+        "title": "My Awesome Video",
+        "description": "Video with auto-generated captions!",
+        "tags": ["audo", "captions", "demo"]
+    }
+)
+```
+
+For more detailed instructions, see the [Uploaders README](uploaders/README.md).
 
 ## Examples
 

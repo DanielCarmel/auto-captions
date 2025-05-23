@@ -9,7 +9,7 @@ from typing import List
 
 import pysubs2
 
-from whisper_align import Segment
+from media_processors.whisper_align import Segment
 
 logger = logging.getLogger(__name__)
 
