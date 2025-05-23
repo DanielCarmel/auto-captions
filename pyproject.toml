@@ -23,9 +23,11 @@ classifiers = [
     "Topic :: Multimedia :: Sound/Audio :: Speech",
 ]
 dependencies = [
+    "boto3>=1.37.38",
     "gtts>=2.5.4",
     "openai-whisper>=20240930",
     "pysubs2>=1.6.0",
+    "requests>=2.32.3",
     "tqdm>=4.66.1",
 ]
 
@@ -45,12 +47,6 @@ adjust-subtitles = "adjust_subtitles:main"
 [tool.hatch.build.targets.wheel]
 packages = ["*.py"]
 exclude = ["examples"]
-
-[tool.uv]
-# uv-specific configuration
-pip = { resolution = "highest" }
-exclude = ["build"]
-requirements-file = "requirements.txt"
 
 [tool.black]
 line-length = 88

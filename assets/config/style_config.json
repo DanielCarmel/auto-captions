@@ -1,6 +1,6 @@
 {
-    "font_name": "Anton",
-    "font_size": 30,
+    "font_name": "Arial",
+    "font_size": 36,
     "primary_color": "&H00FFFFFF",
     "outline_color": "&H00000000",
     "back_color": "&H80000000",
@@ -9,10 +9,10 @@
     "underline": false,
     "strike_out": false,
     "alignment": 2,
-    "margin_v": 100,
-    "margin_l": 20,
-    "margin_r": 20,
+    "margin_v": 80,
+    "margin_l": 40,              
+    "margin_r": 40,
     "border_style": 1,
-    "outline": 3.0,
-    "shadow": 1.5
+    "outline": 4.0,
+    "shadow": 0
 }

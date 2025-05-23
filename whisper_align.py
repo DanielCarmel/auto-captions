@@ -105,7 +105,6 @@ class WhisperAligner:
 
         # Run transcription
         result = self.model.transcribe(audio_path, **options)
-
         logger.info(f"Transcription complete: {len(result['segments'])} segments")
         return result
 
@@ -122,10 +121,6 @@ class WhisperAligner:
         """
         # Extract audio from video
         audio_path = self._extract_audio(video_path)
-
-        # TODO: Add reference to test if generated transcript is correct
-        # Read the reference transcript
-        # reference_transcript = self.read_transcript(transcript_path)
 
         try:
             # Transcribe audio with Whisper to get timestamps

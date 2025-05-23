@@ -116,15 +116,16 @@ class SubtitlesGenerator:
 
         return style_name
 
-    def generate(self, aligned_transcript: List[Segment], output_path: str):
+    def generate(self, aligned_transcript: List[Segment], output_path: str, each_word: bool = False):
         """
         Generate ASS subtitle file from aligned transcript segments.
 
         Args:
             aligned_transcript: List of aligned transcript segments
             output_path: Output subtitle file path
+            each_word: If True, generate timestamps for each word instead of segments
         """
-        logger.info(f"Generating ASS subtitles with {len(aligned_transcript)} segments")
+        logger.info(f"Generating ASS subtitles with {len(aligned_transcript)} segments, each_word={each_word}")
 
         # Create a new subtitle file
         subs = pysubs2.SSAFile()
@@ -132,18 +133,47 @@ class SubtitlesGenerator:
         # Set up the style
         style_name = self._create_style(subs)
 
-        # Add events (subtitle lines) from aligned transcript
-        for segment in aligned_transcript:
-            start_time = int(segment.start * 1000)  # Convert to milliseconds
-            end_time = int(segment.end * 1000)  # Convert to milliseconds
+        if not each_word:
+            # Standard mode: Add events (subtitle lines) from aligned transcript
+            for segment in aligned_transcript:
+                start_time = int(segment.start * 1000)  # Convert to milliseconds
+                end_time = int(segment.end * 1000)  # Convert to milliseconds
 
-            # Create subtitle event
-            event = pysubs2.SSAEvent(
-                start=start_time, end=end_time, text=segment.text, style=style_name
-            )
+                # Create subtitle event
+                event = pysubs2.SSAEvent(start=start_time, end=end_time, text=segment.text, style=style_name)
 
-            # Add event to subtitle file
-            subs.events.append(event)
+                # Add event to subtitle file
+                subs.events.append(event)
+        else:
+            # Word-by-word mode
+            for segment in aligned_transcript:
+                # Get segment duration in milliseconds
+                segment_start_ms = int(segment.start * 1000)
+                segment_end_ms = int(segment.end * 1000)
+                segment_duration = segment_end_ms - segment_start_ms
+
+                # Split segment text into words
+                words = segment.text.split()
+                if not words:
+                    continue
+
+                # Calculate time per word (approximate distribution)
+                word_duration = segment_duration / len(words)
+
+                # Create a subtitle event for each word
+                for i, word in enumerate(words):
+                    word_start = segment_start_ms + int(i * word_duration)
+                    word_end = segment_start_ms + int((i + 1) * word_duration)
+
+                    # Ensure last word ends exactly at segment end
+                    if i == len(words) - 1:
+                        word_end = segment_end_ms
+
+                    # Create subtitle event
+                    event = pysubs2.SSAEvent(start=word_start, end=word_end, text=word, style=style_name)
+
+                    # Add event to subtitle file
+                    subs.events.append(event)
 
         # Save to file
         subs.save(output_path)

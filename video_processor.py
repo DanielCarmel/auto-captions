@@ -1,7 +1,6 @@
 """
 video_processor.py - Processes video with subtitles using ffmpeg
 """
-
 import logging
 import os
 import subprocess
@@ -177,7 +176,7 @@ class VideoProcessor:
 
     def _extend_video(self, video_path: str, target_duration: float, output_path: str) -> str:
         """
-        Extend a video to the specified duration by looping or adding a still frame.
+        Extend a video to the specified duration by looping the video content.
 
         Args:
             video_path: Path to the input video
@@ -199,56 +198,49 @@ class VideoProcessor:
 
         # Create a temporary directory for processing
         with tempfile.TemporaryDirectory() as temp_dir:
-            # Extract the last frame to use for freezing
-            last_frame_path = os.path.join(temp_dir, "last_frame.jpg")
-            extract_cmd = [
-                "ffmpeg",
-                "-i",
-                video_path,
-                "-ss",
-                str(original_duration - 0.1),  # Get frame from end of video
-                "-frames:v",
-                "1",
-                last_frame_path,
-                "-y",
-            ]
+            # Calculate how many times we need to loop the video
+            loops_needed = int(target_duration / original_duration) + 1
+            remaining_duration = target_duration % original_duration
+
+            # Make a copy of the original video to the temporary directory
+            local_video_path = os.path.join(temp_dir, "original_video.mp4")
+            self._copy_video(video_path, local_video_path)
 
             try:
-                subprocess.run(extract_cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-
-                # Create a video from the last frame with the remaining duration
-                freeze_duration = target_duration - original_duration
-                freeze_video_path = os.path.join(temp_dir, "freeze.mp4")
-                freeze_cmd = [
-                    "ffmpeg",
-                    "-loop",
-                    "1",
-                    "-i",
-                    last_frame_path,
-                    "-c:v",
-                    "libx264",
-                    "-t",
-                    str(freeze_duration),
-                    "-pix_fmt",
-                    "yuv420p",
-                    "-shortest",
-                    freeze_video_path,
-                    "-y",
-                ]
-
-                subprocess.run(freeze_cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-
-                # Make a copy of the original video to the temporary directory
-                local_video_path = os.path.join(temp_dir, "original_video.mp4")
-                self._copy_video(video_path, local_video_path)
-
                 # Create a file list for concatenation
                 concat_file = os.path.join(temp_dir, "concat.txt")
                 with open(concat_file, "w") as f:
-                    f.write(f"file '{local_video_path}'\n")
-                    f.write(f"file '{freeze_video_path}'\n")
+                    # Add the complete loops
+                    for _ in range(loops_needed - 1):
+                        f.write(f"file '{local_video_path}'\n")
 
-                # Concatenate the original video and the freeze frame video
+                    # Handle the remaining partial loop if needed
+                    if remaining_duration > 0.1:  # Only if we need a significant chunk
+                        # Create a trimmed version of the original for the remaining duration
+                        trimmed_path = os.path.join(temp_dir, "trimmed.mp4")
+                        trim_cmd = [
+                            "ffmpeg",
+                            "-i",
+                            local_video_path,
+                            "-t",
+                            str(remaining_duration),
+                            "-c:v",
+                            "libx264",
+                            "-c:a",
+                            "aac",
+                            "-strict",
+                            "experimental",
+                            trimmed_path,
+                            "-y",
+                        ]
+
+                        subprocess.run(trim_cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                        f.write(f"file '{trimmed_path}'\n")
+                    else:
+                        # Add one more complete copy if the remaining time is too short
+                        f.write(f"file '{local_video_path}'\n")
+
+                # Concatenate all the video segments
                 concat_cmd = [
                     "ffmpeg",
                     "-f",
@@ -268,7 +260,7 @@ class VideoProcessor:
                 ]
 
                 subprocess.run(concat_cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                logger.info(f"Video extended to {target_duration} seconds: {output_path}")
+                logger.info(f"Video extended to {target_duration} seconds by looping: {output_path}")
                 return output_path
 
             except subprocess.CalledProcessError as e:
@@ -322,43 +314,3 @@ class VideoProcessor:
         except subprocess.CalledProcessError as e:
             logger.error(f"Error burning subtitles: {e.stderr.decode()}")
             raise RuntimeError(f"Failed to burn subtitles into video: {str(e)}")
-
-    def extract_frames(self, video_path: str, output_dir: str, fps: int = 1):
-        """
-        Extract frames from video using ffmpeg.
-
-        Args:
-            video_path: Path to the input video
-            output_dir: Directory to save extracted frames
-            fps: Frames per second to extract
-        """
-        logger.info(f"Extracting frames from video: {video_path}")
-
-        # Ensure the output directory exists
-        if not os.path.exists(output_dir):
-            os.makedirs(output_dir)
-
-        # Prepare ffmpeg command
-        cmd = [
-            "ffmpeg",
-            "-i",
-            video_path,
-            "-vf",
-            f"fps={fps}",
-            "-q:v",
-            "2",  # Quality setting for JPEG
-            os.path.join(output_dir, "frame_%04d.jpg"),
-            "-y",
-        ]
-
-        try:
-            # Run ffmpeg command
-            logger.info(f"Running ffmpeg to extract frames at {fps} fps")
-            subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-
-            logger.info(f"Successfully extracted frames to: {output_dir}")
-            return True
-
-        except subprocess.CalledProcessError as e:
-            logger.error(f"Error extracting frames: {e.stderr.decode()}")
-            raise RuntimeError(f"Failed to extract frames from video: {str(e)}")

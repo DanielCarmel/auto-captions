@@ -8,7 +8,7 @@ A Python tool that automatically generates styled subtitles for videos using a p
 - Use OpenAI's Whisper to align transcripts with audio timestamps
 - Generate styled ASS subtitles with customizable appearance
 - Burn subtitles directly into videos using FFmpeg
-- Simple command-line interface
+- Text summarization and processing with local LLMs
 - Convert text to speech with automatic captions
 
 ## Requirements
@@ -16,6 +16,7 @@ A Python tool that automatically generates styled subtitles for videos using a p
 - Python 3.8 or higher
 - FFmpeg (installed and in PATH)
 - Dependencies listed in `requirements.txt`
+- Optional: Local LLM models via llama-cpp-python (see [LLM Setup](docs/llama_cpp.md))
 
 ## Installation
 
@@ -112,6 +113,30 @@ python main.py tts --text "This is the text to convert to speech with captions."
 python main.py tts --text-file examples/script.txt --output examples/tts_output.mp4
 ```
 
+### Text-to-Speech Services
+
+The tool supports multiple text-to-speech services:
+
+#### Google Text-to-Speech (Default)
+
+```bash
+python main.py --video input.mp4 --output output.mp4 --tts google
+```
+
+#### AWS Polly
+
+To use AWS Polly (requires AWS credentials to be configured):
+
+```bash
+python main.py --video input.mp4 --output output.mp4 --tts aws --aws-voice Joanna --aws-engine neural
+```
+
+AWS Polly options:
+- `--aws-voice`: Voice ID to use (e.g., Joanna, Matthew, Nicole, Emma, etc.)
+- `--aws-engine`: Engine type (standard, neural, or long-form)
+
+Note: AWS credentials must be configured through AWS CLI (`aws configure`) or environment variables.
+
 ### Custom Styling
 
 You can apply custom subtitle styling to the text-to-speech output:
@@ -131,6 +156,63 @@ This is useful for:
 - Generating instructional videos from scripts
 - Producing narrated presentations with subtitles
 - Creating content in multiple languages
+
+## Using Local LLMs with llama-cpp-python
+
+This project now supports using local LLMs through llama-cpp-python instead of requiring Ollama. This gives you more flexibility in how you load and use models.
+
+### Installing llama-cpp-python
+
+You can install llama-cpp-python with varying levels of optimization:
+
+```bash
+# Basic installation
+pip install llama-cpp-python
+
+# With CPU optimizations (OpenBLAS)
+CMAKE_ARGS="-DLLAMA_BLAS=ON -DLLAMA_BLAS_VENDOR=OpenBLAS" pip install llama-cpp-python
+
+# With CUDA support (for NVIDIA GPUs)
+CMAKE_ARGS="-DLLAMA_CUBLAS=ON" pip install llama-cpp-python
+```
+
+### Downloading and Managing Models
+
+We've included a helper script to download and manage model files. Models will be stored in `~/models/llama` by default.
+
+```bash
+# List available models and supported model IDs
+python scripts/setup_models.py list
+
+# Download a specific model (e.g., mistral:7b)
+python scripts/setup_models.py download mistral:7b
+
+# Show information about downloaded models
+python scripts/setup_models.py info
+```
+
+### Configuration
+
+In your code, you can specify which model to use and where to find it:
+
+```python
+from ai_text_processor import AITextProcessor
+
+# Initialize with default settings
+ai_processor = AITextProcessor(local_model="mistral:7b")
+
+# Or specify a custom models directory
+models_dir = "/path/to/your/models"
+ai_processor = AITextProcessor(local_model="mistral:7b", models_dir=models_dir)
+
+# Check if model is available and use it
+if ai_processor.is_available():
+    summary = ai_processor.summarize_text(
+        text="Your text here", 
+        style="tiktok",
+        tone="casual"
+    )
+```
 
 ## Subtitle Styling
 

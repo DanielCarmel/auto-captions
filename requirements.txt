@@ -2,6 +2,10 @@ openai-whisper>=20231117
 pysubs2>=1.6.0
 tqdm>=4.66.1
 gtts>=2.3.0  # Google Text-to-Speech library
+boto3>=1.28.0  # AWS SDK for Python (Boto3) for AWS Polly
+openai>=1.0.0  # OpenAI API for text processing and summarization
+llama-cpp-python>=0.2.11  # LLaMa CPP Python bindings for direct model loading
+requests>=2.25.0  # HTTP library for downloading models
 
 # Development dependencies
 pytest>=7.0.0
