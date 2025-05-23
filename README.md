@@ -11,6 +11,9 @@ A Python tool that automatically generates styled subtitles for videos using a p
 - Text summarization and processing with local LLMs
 - Convert text to speech with automatic captions
 - Upload videos to social networks (YouTube, Facebook, Instagram, TikTok)
+- Send videos and messages to Telegram channels/chats
+- Batch process videos with consistent styling
+- Support for local LLM models via llama-cpp-python
 
 ## Requirements
 
@@ -27,7 +30,7 @@ A Python tool that automatically generates styled subtitles for videos using a p
 2. Run the setup script which will set up a virtual environment and install dependencies using uv:
 
 ```bash
-./setup.sh
+./scripts/setup.sh
 ```
 
 ### Manual Installation
@@ -119,6 +122,54 @@ results = distributor.process_and_distribute(
 
 For more detailed instructions, see the [Uploaders README](uploaders/README.md).
 
+### Using Telegram Integration
+
+The tool provides capabilities to send videos and text messages to Telegram chats or channels:
+
+1. Set up your Telegram bot and get a bot token from [@BotFather](https://t.me/botfather)
+
+2. Find your chat ID (you can use [@userinfobot](https://t.me/userinfobot))
+
+3. Set environment variables (recommended) or provide them as arguments:
+
+```bash
+export TELEGRAM_BOT_TOKEN="your_bot_token"
+export TELEGRAM_CHAT_ID="your_chat_id"
+```
+
+4. Send a video to Telegram:
+
+```bash
+python -m telegram_bot.bot --video output.mp4 --caption "My video with captions"
+```
+
+5. Or send a text message:
+
+```bash
+python -m telegram_bot.bot --text "Video processing complete!"
+```
+
+6. In your own code:
+
+```python
+from telegram_bot.bot import send_video_to_telegram, send_text_to_telegram
+
+# Send video
+send_video_to_telegram(
+    video_path="path/to/video.mp4",
+    caption="My awesome video!",
+    bot_token="your_bot_token",  # Optional if env var is set
+    chat_id="your_chat_id"       # Optional if env var is set
+)
+
+# Send text message
+send_text_to_telegram(
+    text="Processing complete!",
+    bot_token="your_bot_token",  # Optional if env var is set
+    chat_id="your_chat_id"       # Optional if env var is set
+)
+```
+
 ## Examples
 
 The `examples` directory contains demonstration files and sample code to help you get started:
@@ -206,7 +257,7 @@ This is useful for:
 
 ## Using Local LLMs with llama-cpp-python
 
-This project now supports using local LLMs through llama-cpp-python instead of requiring Ollama. This gives you more flexibility in how you load and use models.
+This project supports using local LLMs through llama-cpp-python instead of requiring Ollama. This gives you more flexibility in how you load and use models.
 
 ### Installing llama-cpp-python
 
@@ -301,6 +352,17 @@ Example style configuration:
 3. **Subtitle Generation**: The aligned transcript segments are converted to Advanced SubStation Alpha (.ass) format with customizable styling.
 4. **Subtitle Burning**: FFmpeg is used to embed the subtitles directly into the video file.
 5. **Text-to-Speech**: Converts text to speech, aligns it with captions, and generates a video with synchronized subtitles.
+6. **Social Media Distribution**: Optionally uploads the processed videos to various social media platforms.
+7. **Telegram Integration**: Sends videos and notification messages to Telegram chats or channels.
+
+## Utilities and Scripts
+
+The project includes several utility scripts:
+
+- `scripts/setup_models.py`: Download and manage LLM models
+- `scripts/compare_models.py`: Compare different LLM models for text processing
+- `scripts/tts_comparison.py`: Compare different text-to-speech services
+- `scripts/setup.sh`: Install dependencies and set up the environment
 
 ## License
 
@@ -313,4 +375,6 @@ This tool uses:
 - [pysubs2](https://github.com/tkarabela/pysubs2) for subtitle generation
 - [FFmpeg](https://ffmpeg.org/) for audio extraction and subtitle burning
 - [Google Text-to-Speech (gTTS)](https://pypi.org/project/gTTS/) for text-to-speech conversion
-# auto-captions
+- [AWS Polly](https://aws.amazon.com/polly/) for high-quality text-to-speech
+- [llama-cpp-python](https://github.com/abetlen/llama-cpp-python) for local LLM inference
+- [python-telegram-bot](https://github.com/python-telegram-bot/python-telegram-bot) for Telegram integration
