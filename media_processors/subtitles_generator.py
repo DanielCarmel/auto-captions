@@ -145,7 +145,7 @@ class SubtitlesGenerator:
                 # Add event to subtitle file
                 subs.events.append(event)
         else:
-            # Word-by-word mode
+            # Word-by-word mode with improved timing based on character length
             for segment in aligned_transcript:
                 # Get segment duration in milliseconds
                 segment_start_ms = int(segment.start * 1000)
@@ -157,15 +157,25 @@ class SubtitlesGenerator:
                 if not words:
                     continue
 
-                # Calculate time per word (approximate distribution)
-                word_duration = segment_duration / len(words)
+                # Calculate time per character (proportional to length)
+                total_chars = sum(len(word) for word in words)
+                if total_chars == 0:
+                    continue
 
-                # Create a subtitle event for each word
+                ms_per_char = segment_duration / total_chars
+
+                # Create a subtitle event for each word with proportional timing
+                current_time = segment_start_ms
                 for i, word in enumerate(words):
-                    word_start = segment_start_ms + int(i * word_duration)
-                    word_end = segment_start_ms + int((i + 1) * word_duration)
+                    word_duration = int(len(word) * ms_per_char)
 
-                    # Ensure last word ends exactly at segment end
+                    # Ensure minimum duration
+                    word_duration = max(word_duration, 100)  # At least 100ms per word
+
+                    word_start = current_time
+                    word_end = current_time + word_duration
+
+                    # Ensure the last word ends exactly at segment end
                     if i == len(words) - 1:
                         word_end = segment_end_ms
 
@@ -174,6 +184,9 @@ class SubtitlesGenerator:
 
                     # Add event to subtitle file
                     subs.events.append(event)
+
+                    # Update current time position
+                    current_time = word_end
 
         # Save to file
         subs.save(output_path)

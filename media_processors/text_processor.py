@@ -27,6 +27,7 @@ class AITextProcessor:
         """
         if LLAMACPP_AVAILABLE:
             self._llm_manager = LlamaCppManager(model_path=model_path)
+            self._llm_manager.load_model()
         else:
             logger.warning("No local LLM backend available. Install llama-cpp-python.")
 
@@ -83,7 +84,8 @@ class AITextProcessor:
                     "Maintain first-person perspective when appropriate. "
                     "Include internet slang like 'vibin', 'sus', 'lowkey', etc. Make it sound like "
                     "someone casually telling a wild story to their friends, with lots of energy "
-                    "and emphasis on surprising or dramatic moments."
+                    "and emphasis on surprising or dramatic moments. "
+                    "Do not include parenthetical stage directions like (sighs), (laughs), or similar"
                 ),
             },
             {"role": "user", "content": "\n".join(prompt_parts)},
@@ -97,7 +99,6 @@ class AITextProcessor:
             formatted_prompt += f"{role.upper()}: {content}\n\n"
 
         try:
-            self._llm_manager.load_model()
             response = self._llm_manager.generate(prompt=formatted_prompt,
                                                   max_tokens=max_output_tokens,
                                                   temperature=0.7,
@@ -118,11 +119,12 @@ class AITextProcessor:
 
         # Remove any note or comment lines that appear at the end
         note_patterns = [
-            r"\n\n\(Note:.*",
-            r"\n\nNote:.*",
-            r"\n\n\[Note:.*",
-            r"\n\n--.*",
-            r"\n\nWord count:.*"
+            r"\n\n\(Note:.*",  # Matches "(Note: ..." at the end
+            r"\n\nNote:.*",  # Matches "Note: ..." at the end
+            r"\n\n\[Note:.*",  # Matches "[Note: ..." at the end
+            r"\n\n--.*",  # Matches "--" at the end
+            r"\n\nWord count:.*",  # Matches "Word count: ..." at the end
+            r"\(\s*[a-zA-Z\s']+\s*\)"  # Matches any parenthetical comments like "(sighs)", "(laughs)", etc.
         ]
 
         import re
@@ -145,3 +147,69 @@ class AITextProcessor:
                     text = text.replace(phrase, f", {phrase}")
 
         return text.strip()
+
+    def analyze_sentiment(self, text: str, categories: list = None) -> str:
+        """
+        Analyze the sentiment or classify text using local LLM.
+
+        Args:
+            text: Text to analyze
+            categories: List of categories to classify the text into (optional)
+
+        Returns:
+            Classification result or sentiment analysis
+        """
+        if not LLAMACPP_AVAILABLE or not hasattr(self, '_llm_manager'):
+            logger.error("LLM backend not available for sentiment analysis")
+            return None
+
+        # Default categories if none provided
+        if not categories:
+            categories = [
+                "Negative Experience",
+                "Neutral Experience",
+                "Emotional",
+                "Informative",
+                "Drama",
+                "Positive Experience",
+                "Mundane",
+                "Funny",
+                "Creepy",
+                "Scary",
+                "AITA",
+                "Motivational",
+                "Inspirational"
+            ]
+
+        # Format categories for the prompt
+        categories_text = "\n".join([f"{i+1}. {cat}" for i, cat in enumerate(categories)])
+
+        prompt = f"""Classify the following text into one of these categories:
+{categories_text}
+
+Text: "{text}"
+
+Answer with only the category name:"""
+
+        try:
+            response = self._llm_manager.generate(
+                prompt=prompt,
+                max_tokens=50,  # We only need a short response
+                temperature=0.2,  # Lower temperature for more deterministic results
+                top_p=0.9
+            )
+
+            # Clean up the response to extract just the category
+            response = response.strip()
+
+            # Try to match the response with one of the categories
+            for category in categories:
+                if category.lower() in response.lower():
+                    return category
+
+            # If no exact match, return the cleaned response
+            return response
+
+        except Exception as e:
+            logger.error(f"Error in sentiment analysis: {e}")
+            return None
