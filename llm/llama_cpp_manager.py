@@ -51,12 +51,32 @@ class LlamaCppManager:
             logger.error(f"Model file not found: {self._direct_model_path}")
 
         try:
+            # Check GPU availability through llama-cpp-python
+            gpu_available = False
+            try:
+                import llama_cpp
+                if hasattr(llama_cpp, 'LLAMA_BACKEND_CUDA'):
+                    gpu_available = True
+                    logger.info("CUDA backend available for LLaMA model")
+            except ImportError:
+                logger.warning("CUDA backend not available in llama-cpp-python")
+
+            # Optimized parameters for RTX 4070 GPU
             params = {
-                "n_ctx": 4096,  # Context window
-                "n_batch": 512,  # Batch size
-                "n_gpu_layers": -1,  # Use GPU if available
-                "verbose": False,
+                "n_ctx": 8192,            # Context window - full model capacity
+                "n_batch": 1024,          # Increased batch size for better throughput
+                "n_gpu_layers": 35,       # Explicitly set number of layers on GPU (35 is good for 8B model)
+                "verbose": False,         # No verbose output
+                "main_gpu": 0,            # Use the primary GPU
+                "tensor_split": [1.0],    # Assign all tensors to GPU 0
+                "f16_kv": True,           # Use half-precision for key/value cache
+                "use_mlock": True,        # Lock memory to prevent swapping
             }
+
+            # Use absolute maximum GPU layers if the user specified -1
+            if kwargs.get("n_gpu_layers", 0) == -1 and gpu_available:
+                logger.info("Using maximum GPU layers for model acceleration")
+                params["n_gpu_layers"] = 35  # Typical layer count for 8B model
 
             # Update with user-provided params
             params.update(kwargs)

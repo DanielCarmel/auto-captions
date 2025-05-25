@@ -55,16 +55,21 @@ if not posts:
 
 # Get the original text content
 title = posts[0]["title"]
+post_text = posts[0]["selftext"]
 
 # Process the text using AITextProcessor
 ai_processor = AITextProcessor("/home/daniel/models/llama/Meta-Llama-3-8B-Instruct-Q5_K_M.gguf")
+post_emotion = ai_processor.analyze_sentiment(post_text)
 text_script = ai_processor.summarize_text(
     datasource=reddit.get_datasource_name(),
-    text=posts[0]["selftext"],
+    text=post_text,
     style="tiktok",
-    tone="casual",
+    tone=post_emotion,
     length=60,
     theme=selected_subreddit)
+
+# Clean up ai_processor
+ai_processor = None
 
 # Create a temporary directory for processing
 with tempfile.TemporaryDirectory() as temp_dir:
